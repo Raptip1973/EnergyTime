@@ -73,7 +73,7 @@ function getItalyUTCOffset(date) {
   lastSundayOctober.setDate(31 - lastSundayOctober.getDay());
 
   const isDST = date >= lastSundayMarch && date < lastSundayOctober;
-  return isDST ? 2 : 1;
+return isDST ? 3 : 2;
 }
 
 // Sposta i prezzi di N ore per correggere UTC → ora locale
