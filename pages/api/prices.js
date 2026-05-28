@@ -50,8 +50,8 @@ async function fetchFromENTSOE(token, date) {
   const yDay   = String(yesterday.getDate()).padStart(2, '0');
 
   // Range: da ieri alle 23:00 UTC a domani alle 00:00 UTC
-  const periodStart = `${yYear}${yMonth}${yDay}2300`;
-  const periodEnd   = `${year}${month}${day}2300`;
+  const periodStart = `${yYear}${yMonth}${yDay}2200`;
+  const periodEnd   = `${year}${month}${day}2200`;
 
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=10YIT-GRTN-----B&out_Domain=10YIT-GRTN-----B&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${token}`;
 
