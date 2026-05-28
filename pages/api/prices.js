@@ -121,7 +121,7 @@ async function fetchFromENTSOE(token, date) {
     return `${y}${m}${day}${hhmm}`;
   };
 
-  const domain = '10Y1001A1001A73I';
+  const domain = '10Y1001A1001A70O';
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=${domain}&out_Domain=${domain}&periodStart=${fmt(yesterday,'2200')}&periodEnd=${fmt(date,'2200')}&securityToken=${token}`;
 
   const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
