@@ -1,6 +1,4 @@
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
-
   const today = new Date();
   const dateLabel = today.toLocaleDateString('it-IT', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -8,9 +6,9 @@ export default async function handler(req, res) {
 
   if (process.env.ENTSOE_TOKEN) {
     try {
-      const prices = await fetchFromENTSOE(process.env.ENTSOE_TOKEN, today);
+      const { prices, debug } = await fetchFromENTSOE(process.env.ENTSOE_TOKEN, today);
       return res.status(200).json({
-        prices,
+        prices, debug,
         source: 'ENTSO-E — Dati reali di mercato',
         isReal: true,
         date: dateLabel,
@@ -18,52 +16,53 @@ export default async function handler(req, res) {
       });
     } catch (err) {
       console.error('[EnergyTime] ENTSO-E error:', err.message);
+      return res.status(200).json({
+        prices: getTypicalItalianProfile(),
+        source: 'Profilo tipico italiano (demo)',
+        isReal: false,
+        date: dateLabel,
+        error: err.message,
+      });
     }
   }
 
-  const prices = getTypicalItalianProfile();
   return res.status(200).json({
-    prices,
+    prices: getTypicalItalianProfile(),
     source: 'Profilo tipico italiano (demo)',
     isReal: false,
     date: dateLabel,
-    updatedAt: new Date().toISOString(),
   });
 }
 
 async function fetchFromENTSOE(token, date) {
-  // I prezzi MGP vengono pubblicati il giorno prima per il giorno dopo.
-  // Quindi per avere i prezzi di OGGI dobbiamo chiedere quelli
-  // che sono stati pubblicati IERI (con data di consegna = oggi).
-  // ENTSO-E usa UTC — l'Italia è UTC+1 (o +2 in estate).
-  // Usiamo un range ampio (giorno prima + giorno corrente) per sicurezza.
+  // Proviamo con domani — i prezzi MGP sono per il giorno dopo
+  const tomorrow = new Date(date);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const year  = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day   = String(date.getDate()).padStart(2, '0');
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}0000`;
+  };
 
-  // Giorno precedente (per coprire il caso UTC vs ora italiana)
-  const yesterday = new Date(date);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yYear  = yesterday.getFullYear();
-  const yMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
-  const yDay   = String(yesterday.getDate()).padStart(2, '0');
+  const periodStart = fmt(date);
+  const periodEnd   = fmt(tomorrow);
 
-  // Range: da ieri alle 23:00 UTC a domani alle 00:00 UTC
-  const periodStart = `${yYear}${yMonth}${yDay}2200`;
-  const periodEnd   = `${year}${month}${day}2200`;
+  console.log('[EnergyTime] Requesting:', periodStart, '->', periodEnd);
 
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=10YIT-GRTN-----B&out_Domain=10YIT-GRTN-----B&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${token}`;
 
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`HTTP ${res.status}: ${body.slice(0, 200)}`);
-  }
-
   const xml = await res.text();
-  return parseENTSOEXml(xml);
+
+  console.log('[EnergyTime] Response status:', res.status);
+  console.log('[EnergyTime] Response preview:', xml.slice(0, 500));
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${xml.slice(0, 200)}`);
+
+  const prices = parseENTSOEXml(xml);
+  return { prices, debug: { periodStart, periodEnd, status: res.status } };
 }
 
 function parseENTSOEXml(xml) {
