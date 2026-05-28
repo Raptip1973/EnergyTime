@@ -17,7 +17,7 @@ export default async function handler(req, res) {
         updatedAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.error('[EnergyTime] Errore finale:', err.message);
+      console.error('[EnergyTime] Errore:', err.message);
     }
   }
 
@@ -31,9 +31,6 @@ export default async function handler(req, res) {
 }
 
 async function fetchFromENTSOE(token, date) {
-  // ENTSO-E usa UTC. Italia = UTC+2 in estate.
-  // I prezzi del giorno X vanno da 22:00 UTC del giorno X-1 alle 22:00 UTC del giorno X.
-  // Usiamo un range largo per catturare sicuramente i dati.
   const yesterday = new Date(date);
   yesterday.setDate(yesterday.getDate() - 1);
 
@@ -44,67 +41,64 @@ async function fetchFromENTSOE(token, date) {
     return `${y}${m}${day}${hhmm}`;
   };
 
-  // Range: da ieri ore 22:00 UTC a oggi ore 22:00 UTC = le 24h italiane di oggi
   const periodStart = fmt(yesterday, '2200');
-  const periodEnd   = fmt(date,      '2200');
+  const periodEnd   = fmt(date, '2200');
+  const domain = '10Y1001A1001A73I';
 
-  console.log('[EnergyTime] Richiesta range:', periodStart, '->', periodEnd);
+  const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=${domain}&out_Domain=${domain}&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${token}`;
 
-  const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=10YIT-GRTN-----B&out_Domain=10YIT-GRTN-----B&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${token}`;
-
-  const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
   const xml = await response.text();
 
-  console.log('[EnergyTime] Status HTTP:', response.status);
-  console.log('[EnergyTime] XML inizio:', xml.substring(0, 300));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${xml.substring(0, 150)}`);
-  }
+  return parseENTSOEXml(xml);
+}
 
-  // Parser robusto: estrae direttamente tutte le coppie position+price dall'XML
-  const prices = new Array(24).fill(null);
+function parseENTSOEXml(xml) {
+  // Accumula valori per ogni ora (0-23)
+  const hourlyBuckets = Array.from({ length: 24 }, () => []);
 
-  // Cerca tutti i blocchi <Period> che contengono i prezzi
   const periodBlocks = xml.match(/<Period>[\s\S]*?<\/Period>/g) || [];
-  console.log('[EnergyTime] Blocchi Period trovati:', periodBlocks.length);
 
   for (const period of periodBlocks) {
-    // Solo periodi con risoluzione oraria
-    if (!period.includes('PT60M')) continue;
+    // Determina la risoluzione: PT60M (oraria) o PT15M (ogni 15 min)
+    const resMatch = period.match(/<resolution>(PT\d+M)<\/resolution>/);
+    if (!resMatch) continue;
+    const resolution = resMatch[1]; // 'PT60M' o 'PT15M'
+    const minutesPerSlot = resolution === 'PT15M' ? 15 : 60;
+    const slotsPerHour   = 60 / minutesPerSlot; // 4 per PT15M, 1 per PT60M
 
-    // Estrai tutti i Point dentro questo Period
     const pointBlocks = period.match(/<Point>[\s\S]*?<\/Point>/g) || [];
 
     for (const point of pointBlocks) {
-      // Posizione (1-24)
       const posMatch   = point.match(/<position>(\d+)<\/position>/);
-      // Prezzo — prova entrambi i formati possibili
-      const priceMatch = point.match(/<price\.amount>([\d.]+)<\/price\.amount>/) ||
-                         point.match(/<price>([\d.]+)<\/price>/);
+      const priceMatch = point.match(/<price\.amount>([\d.]+)<\/price\.amount>/);
+      if (!posMatch || !priceMatch) continue;
 
-      if (posMatch && priceMatch) {
-        const pos      = parseInt(posMatch[1]) - 1; // converti 1-24 → 0-23
-        const euroMWh  = parseFloat(priceMatch[1]);
-        const ctKwh    = parseFloat((euroMWh / 10).toFixed(2)); // €/MWh → €ct/kWh
-        if (pos >= 0 && pos < 24) {
-          prices[pos] = ctKwh;
-        }
+      const position = parseInt(posMatch[1]); // 1-based
+      const euroMWh  = parseFloat(priceMatch[1]);
+      const ctKwh    = parseFloat((euroMWh / 10).toFixed(3));
+
+      // Converti posizione → ora del giorno (0-23)
+      const hourIndex = Math.floor((position - 1) / slotsPerHour);
+      if (hourIndex >= 0 && hourIndex < 24) {
+        hourlyBuckets[hourIndex].push(ctKwh);
       }
     }
   }
 
-  const filled = prices.filter(p => p !== null).length;
-  console.log('[EnergyTime] Prezzi estratti:', filled, '/24');
+  // Media dei valori per ogni ora
+  const prices = hourlyBuckets.map(bucket =>
+    bucket.length > 0
+      ? parseFloat((bucket.reduce((a, b) => a + b, 0) / bucket.length).toFixed(2))
+      : null
+  );
 
-  if (filled < 20) {
-    // Proviamo anche cercando direttamente nell'XML senza struttura Period
-    const allPos    = [...xml.matchAll(/<position>(\d+)<\/position>/g)];
-    const allPrices = [...xml.matchAll(/<price\.amount>([\d.]+)<\/price\.amount>/g)];
-    console.log('[EnergyTime] Posizioni trovate:', allPos.length, '| Prezzi trovati:', allPrices.length);
-    console.log('[EnergyTime] XML completo (500 chars):', xml.substring(0, 500));
-    throw new Error(`Dati insufficienti: ${filled}/24 ore`);
-  }
+  const filled = prices.filter(p => p !== null).length;
+  console.log('[EnergyTime] Ore con dati:', filled, '/24');
+
+  if (filled < 20) throw new Error(`Dati insufficienti: ${filled}/24 ore`);
 
   // Interpola eventuali ore mancanti
   return prices.map((p, i) => {
