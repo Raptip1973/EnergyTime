@@ -8,7 +8,6 @@ const APPLIANCES = [
   { name: 'Ferro da stiro', icon: '👔', kw: 2.4, hours: 0.5 },
   { name: 'Carica auto EV', icon: '🚗', kw: 7.4, hours: 4.0 },
 ];
-
 const SLOTS = [
   { label: '🌙 Notte',           range: [0,  5],  tip: 'Ideale per lavatrice e lavastoviglie con timer' },
   { label: '🌅 Prima mattina',   range: [6,  8],  tip: 'Colazione e piccoli elettrodomestici' },
@@ -17,42 +16,216 @@ const SLOTS = [
   { label: '🌆 Punta serale',    range: [16, 21], tip: '⚠️ Fascia più cara — evita grandi consumi' },
   { label: '🌃 Tarda sera',      range: [22, 23], tip: 'Prezzi in calo — usa il timer notturno' },
 ];
-
-const MONTHS_IT = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+const MONTHS_IT   = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
 const MONTHS_FULL = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
-function priceColor(p, min, max) {
-  const r = (p - min) / (max - min || 1);
-  if (r < 0.33) return '#16a34a';
-  if (r < 0.66) return '#d97706';
-  return '#dc2626';
-}
-function priceBg(p, min, max) {
-  const r = (p - min) / (max - min || 1);
-  if (r < 0.33) return '#dcfce7';
-  if (r < 0.66) return '#fef3c7';
-  return '#fee2e2';
-}
-function priceTag(p, min, max) {
-  const r = (p - min) / (max - min || 1);
-  if (r < 0.33) return { icon: '✅', text: 'Conveniente' };
-  if (r < 0.66) return { icon: '⚡', text: 'Nella media' };
-  return { icon: '🔴', text: 'Costoso' };
-}
-function pad2(n) { return String(n).padStart(2, '0'); }
-function toDateStr(d) { return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
-function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function priceColor(p,min,max){const r=(p-min)/(max-min||1);return r<0.33?'#16a34a':r<0.66?'#d97706':'#dc2626';}
+function priceBg(p,min,max){const r=(p-min)/(max-min||1);return r<0.33?'#dcfce7':r<0.66?'#fef3c7':'#fee2e2';}
+function priceTag(p,min,max){const r=(p-min)/(max-min||1);return r<0.33?{icon:'✅',text:'Conveniente'}:r<0.66?{icon:'⚡',text:'Nella media'}:{icon:'🔴',text:'Costoso'};}
+function pad2(n){return String(n).padStart(2,'0');}
+function toDateStr(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
 
+// ── Tutorial ────────────────────────────────────────────────────────────────
+const TUTORIAL_SLIDES = [
+  {
+    step: 'Benvenuto',
+    icon: '⚡',
+    title: 'Risparmia sulla bolletta ogni giorno',
+    desc: 'Il prezzo dell\'energia cambia ogni ora. Sapere quando conviene può far risparmiare fino al 60%.',
+    content: 'semaforo',
+  },
+  {
+    step: 'Il grafico',
+    icon: '📊',
+    title: '24 ore a colpo d\'occhio',
+    desc: 'Verde = conviene, rosso = aspetta. Tocca una barra per il prezzo esatto dell\'ora.',
+    content: 'chart',
+  },
+  {
+    step: 'Risparmio concreto',
+    icon: '🏠',
+    title: 'Quando usare gli elettrodomestici?',
+    desc: 'Nella sezione Elettrod. trovi le 3 ore migliori per ogni apparecchio e il risparmio reale.',
+    content: 'appliances',
+  },
+  {
+    step: 'Naviga nel tempo',
+    icon: '👆',
+    title: 'Scorri per vedere ieri e domani',
+    desc: 'Usa le frecce ‹ › o fai swipe per vedere i prezzi di ieri, domani e lo storico mensile.',
+    content: 'swipe',
+  },
+];
+
+function Tutorial({ onClose }) {
+  const [step,      setStep]      = useState(0);
+  const [neverShow, setNeverShow] = useState(false);
+  const slide = TUTORIAL_SLIDES[step];
+  const isLast = step === TUTORIAL_SLIDES.length - 1;
+
+  const handleClose = (skip = false) => {
+    if (!skip && neverShow) {
+      try { localStorage.setItem('energytime_tutorial_disabled', '1'); } catch(e){}
+    }
+    onClose();
+  };
+
+  return (
+    <div style={ts.overlay}>
+      <div style={ts.modal}>
+        {/* Step label */}
+        <div style={ts.stepLabel}>{slide.step}</div>
+
+        {/* Icon */}
+        <div style={ts.bigIcon}>{slide.icon}</div>
+
+        {/* Title & desc */}
+        <div style={ts.title}>{slide.title}</div>
+        <div style={ts.desc}>{slide.desc}</div>
+
+        {/* Content demo */}
+        <div style={ts.demoCard}>
+          {slide.content === 'semaforo' && (
+            <div style={{ display:'flex', justifyContent:'space-around', padding:'6px 0' }}>
+              {[
+                { col:'#16a34a', bg:'#dcfce7', val:'5–9 €ct', lbl:'Conveniente' },
+                { col:'#d97706', bg:'#fef3c7', val:'9–15 €ct', lbl:'Nella media' },
+                { col:'#dc2626', bg:'#fee2e2', val:'15+ €ct', lbl:'Costoso' },
+              ].map(s => (
+                <div key={s.lbl} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                  <div style={{ width:28, height:28, borderRadius:'50%', background:s.bg, border:`2px solid ${s.col}` }}/>
+                  <span style={{ fontSize:11, fontWeight:700, color:s.col }}>{s.val}</span>
+                  <span style={{ fontSize:9, color:'#64748b' }}>{s.lbl}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {slide.content === 'chart' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {[['02:00','18%','#16a34a','5.3'],['08:00','62%','#d97706','13.8'],['19:00','95%','#dc2626','21.0'],['22:00','38%','#16a34a','9.1']].map(([h,w,c,v])=>(
+                <div key={h} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:10, color:'#94a3b8', width:34 }}>{h}</span>
+                  <div style={{ flex:1, height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' }}>
+                    <div style={{ width:w, height:'100%', background:c, borderRadius:3 }}/>
+                  </div>
+                  <span style={{ fontSize:10, fontWeight:700, color:c, width:28, textAlign:'right' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {slide.content === 'appliances' && (
+            <div>
+              {[['🫧','Lavatrice','02:00, 03:00, 04:00','-58%'],['🚗','Carica auto EV','01:00, 02:00, 03:00','-61%']].map(([icon,name,best,saving])=>(
+                <div key={name} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid #f1f5f9' }}>
+                  <span style={{ fontSize:20 }}>{icon}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color:'#1e293b' }}>{name}</div>
+                    <div style={{ fontSize:10, color:'#16a34a' }}>✅ Meglio alle {best}</div>
+                  </div>
+                  <span style={{ fontSize:16, fontWeight:800, color:'#16a34a' }}>{saving}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {slide.content === 'swipe' && (
+            <div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingBottom:8, marginBottom:8, borderBottom:'1px solid #f1f5f9' }}>
+                <span style={{ fontSize:22, color:'#16a34a' }}>‹</span>
+                <div style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#16a34a' }}>📅 Oggi</div>
+                  <div style={{ fontSize:10, color:'#94a3b8' }}>giovedì 28 maggio</div>
+                </div>
+                <span style={{ fontSize:22, color:'#16a34a' }}>›</span>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, marginBottom:6 }}>
+                <span style={{ fontSize:16, color:'#16a34a' }}>←</span>
+                <span style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:'3px 10px', fontSize:11, color:'#15803d', fontWeight:700 }}>📅 Ieri</span>
+                <span style={{ fontSize:10, color:'#94a3b8' }}>swipe</span>
+                <span style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:'3px 10px', fontSize:11, color:'#15803d', fontWeight:700 }}>📅 Domani</span>
+                <span style={{ fontSize:16, color:'#16a34a' }}>→</span>
+              </div>
+              <div style={{ textAlign:'center', fontSize:10, color:'#94a3b8' }}>
+                Scorri ancora a sinistra per lo storico mensile 📊
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dots */}
+        <div style={{ display:'flex', justifyContent:'center', gap:6, margin:'12px 0 8px' }}>
+          {TUTORIAL_SLIDES.map((_,i) => (
+            <div key={i} onClick={() => setStep(i)} style={{
+              height:6, borderRadius:3, cursor:'pointer', transition:'all .2s',
+              width: i===step ? 18 : 6,
+              background: i===step ? '#16a34a' : '#e2e8f0',
+            }}/>
+          ))}
+        </div>
+
+        {/* Buttons */}
+        {isLast ? (
+          <>
+            <button onClick={() => handleClose(false)} style={ts.btnPrimary}>
+              Inizia a usare l'app 🎉
+            </button>
+            <label style={ts.checkRow}>
+              <input
+                type="checkbox"
+                checked={neverShow}
+                onChange={e => setNeverShow(e.target.checked)}
+                style={{ width:14, height:14, accentColor:'#16a34a', cursor:'pointer' }}
+              />
+              <span style={{ fontSize:11, color:'#94a3b8' }}>Non mostrare più all'avvio</span>
+            </label>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setStep(s => s+1)} style={ts.btnPrimary}>
+              Avanti →
+            </button>
+            <button onClick={() => handleClose(true)} style={ts.btnSkip}>
+              Salta il tutorial
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const ts = {
+  overlay: {
+    position:'fixed', inset:0, background:'rgba(15,23,42,0.7)',
+    display:'flex', alignItems:'center', justifyContent:'center',
+    zIndex:100, padding:16, backdropFilter:'blur(4px)',
+  },
+  modal: {
+    background:'#fff', borderRadius:20, padding:'20px 20px 16px',
+    width:'100%', maxWidth:340,
+    boxShadow:'0 20px 60px rgba(0,0,0,0.3)',
+  },
+  stepLabel: { fontSize:10, fontWeight:700, color:'#16a34a', letterSpacing:1, textTransform:'uppercase', marginBottom:6 },
+  bigIcon:   { fontSize:44, textAlign:'center', margin:'6px 0 10px' },
+  title:     { fontSize:17, fontWeight:800, color:'#1e293b', textAlign:'center', marginBottom:6, lineHeight:1.3 },
+  desc:      { fontSize:12, color:'#64748b', textAlign:'center', lineHeight:1.6, marginBottom:12 },
+  demoCard:  { background:'#f8faff', border:'1px solid #e2e8f0', borderRadius:12, padding:'10px 12px' },
+  btnPrimary:{ display:'block', width:'100%', padding:'11px', background:'#16a34a', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', marginTop:12, fontFamily:'inherit' },
+  btnSkip:   { display:'block', width:'100%', padding:'6px', background:'none', border:'none', color:'#94a3b8', fontSize:11, cursor:'pointer', marginTop:4, fontFamily:'inherit' },
+  checkRow:  { display:'flex', alignItems:'center', gap:6, justifyContent:'center', marginTop:8, cursor:'pointer' },
+};
+
+// ── Componente principale ───────────────────────────────────────────────────
 export default function EnergyTime() {
   const today = new Date(); today.setHours(12,0,0,0);
   const currentYear = today.getFullYear();
 
-  // ── State ────────────────────────────────────────────────────────────────
-  const [view,        setView]        = useState('daily');   // 'daily' | 'yearly'
-  const [dayOffset,   setDayOffset]   = useState(0);         // -1, 0, 1
-  const [yearOffset,  setYearOffset]  = useState(0);         // 0, -1, -2, -3
-  const [dailyData,   setDailyData]   = useState({});        // cache daily
-  const [monthlyData, setMonthlyData] = useState({});        // cache yearly
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [view,        setView]        = useState('daily');
+  const [dayOffset,   setDayOffset]   = useState(0);
+  const [yearOffset,  setYearOffset]  = useState(0);
+  const [dailyData,   setDailyData]   = useState({});
+  const [monthlyData, setMonthlyData] = useState({});
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState(null);
   const [now,         setNow]         = useState(new Date());
@@ -61,15 +234,26 @@ export default function EnergyTime() {
   const canvasRef   = useRef(null);
   const touchStartX = useRef(null);
 
+  // Mostra tutorial ad ogni avvio (a meno che l'utente non l'abbia disabilitato)
+  useEffect(() => {
+    try {
+      const disabled = localStorage.getItem('energytime_tutorial_disabled');
+      if (!disabled) setShowTutorial(true);
+    } catch(e) {
+      setShowTutorial(true);
+    }
+  }, []);
+
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  // ── Daily data ───────────────────────────────────────────────────────────
   const currentDate = addDays(today, dayOffset);
   const dateStr     = toDateStr(currentDate);
   const currentDailyData = dailyData[dateStr];
+  const targetYear = currentYear + yearOffset;
+  const currentMonthlyData = monthlyData[targetYear];
 
   const loadDaily = useCallback(async (ds) => {
     setLoading(true); setError(null);
@@ -78,7 +262,18 @@ export default function EnergyTime() {
       if (!res.ok) throw new Error(`Errore server: ${res.status}`);
       const json = await res.json();
       setDailyData(prev => ({ ...prev, [ds]: json }));
-    } catch (e) { setError(e.message); }
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  const loadMonthly = useCallback(async (yr) => {
+    setLoading(true); setError(null);
+    try {
+      const res = await fetch(`/api/monthly?year=${yr}`);
+      if (!res.ok) throw new Error(`Errore server: ${res.status}`);
+      const json = await res.json();
+      setMonthlyData(prev => ({ ...prev, [yr]: json }));
+    } catch(e) { setError(e.message); }
     finally { setLoading(false); }
   }, []);
 
@@ -89,36 +284,20 @@ export default function EnergyTime() {
     setSelected(null);
   }, [dateStr, view]);
 
-  // Precarica ieri e domani
-  useEffect(() => {
-    [-1, 1].forEach(o => {
-      const ds = toDateStr(addDays(today, o));
-      if (!dailyData[ds]) fetch(`/api/prices?date=${ds}`).then(r=>r.json()).then(j=>setDailyData(p=>({...p,[ds]:j}))).catch(()=>{});
-    });
-  }, []);
-
-  // ── Yearly data ──────────────────────────────────────────────────────────
-  const targetYear = currentYear + yearOffset;
-  const currentMonthlyData = monthlyData[targetYear];
-
-  const loadMonthly = useCallback(async (yr) => {
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch(`/api/monthly?year=${yr}`);
-      if (!res.ok) throw new Error(`Errore server: ${res.status}`);
-      const json = await res.json();
-      setMonthlyData(prev => ({ ...prev, [yr]: json }));
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  }, []);
-
   useEffect(() => {
     if (view !== 'yearly') return;
     if (!monthlyData[targetYear]) loadMonthly(targetYear);
     else setLoading(false);
   }, [targetYear, view]);
 
-  // ── Grafico giornaliero ──────────────────────────────────────────────────
+  useEffect(() => {
+    [-1,1].forEach(o => {
+      const ds = toDateStr(addDays(today, o));
+      if (!dailyData[ds]) fetch(`/api/prices?date=${ds}`).then(r=>r.json()).then(j=>setDailyData(p=>({...p,[ds]:j}))).catch(()=>{});
+    });
+  }, []);
+
+  // Canvas grafico giornaliero
   useEffect(() => {
     if (view !== 'daily' || tab !== 'chart' || !currentDailyData || !canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -129,112 +308,70 @@ export default function EnergyTime() {
     const isToday = dayOffset === 0;
     const hour = now.getHours();
     const padB = 22, chartH = H - padB;
-    const barW = Math.floor((W - 2) / 24) - 1;
-
-    ctx.clearRect(0, 0, W, H);
-    prices.forEach((price, i) => {
-      const ratio = (price - min) / (max - min || 1);
-      const minH = chartH * 0.12, maxH = chartH * 0.92;
-      const bh = minH + ratio * (maxH - minH);
-      const x = i * (barW + 1) + 1, y = chartH - bh;
-      const col = priceColor(price, min, max);
-      const isNow = isToday && i === hour;
-
-      ctx.fillStyle = isNow ? '#1e293b' : i === selected ? col : col + 'cc';
-      ctx.beginPath(); ctx.roundRect(x, y, barW, bh, [3,3,0,0]); ctx.fill();
-
-      if (price === min && !isNow) {
-        ctx.fillStyle = '#16a34a';
-        ctx.beginPath(); ctx.arc(x+barW/2, y-6, 3, 0, Math.PI*2); ctx.fill();
-      }
-      if (i % 4 === 0 || isNow) {
-        ctx.fillStyle = isNow ? '#1e293b' : '#94a3b8';
-        ctx.font = `${isNow?'bold ':''}9px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillText(pad2(i), x+barW/2, H-5);
-      }
+    const barW = Math.floor((W-2)/24)-1;
+    ctx.clearRect(0,0,W,H);
+    prices.forEach((price,i) => {
+      const ratio = (price-min)/(max-min||1);
+      const minH = chartH*0.12, maxH = chartH*0.92;
+      const bh = minH+ratio*(maxH-minH);
+      const x = i*(barW+1)+1, y = chartH-bh;
+      const col = priceColor(price,min,max);
+      const isNow = isToday&&i===hour;
+      ctx.fillStyle = isNow?'#1e293b':i===selected?col:col+'cc';
+      ctx.beginPath(); ctx.roundRect(x,y,barW,bh,[3,3,0,0]); ctx.fill();
+      if (price===min&&!isNow){ctx.fillStyle='#16a34a';ctx.beginPath();ctx.arc(x+barW/2,y-6,3,0,Math.PI*2);ctx.fill();}
+      if (i%4===0||isNow){ctx.fillStyle=isNow?'#1e293b':'#94a3b8';ctx.font=`${isNow?'bold ':''}9px sans-serif`;ctx.textAlign='center';ctx.fillText(pad2(i),x+barW/2,H-5);}
     });
-  }, [view, tab, currentDailyData, now, selected, dayOffset]);
+  }, [view,tab,currentDailyData,now,selected,dayOffset]);
 
-  // ── Grafico mensile (SVG tramite canvas) ─────────────────────────────────
+  // Grafico mensile SVG
   const renderMonthlyChart = (months) => {
-    const valid = months.filter(m => m !== null);
+    const valid = months.filter(m=>m!==null);
     if (!valid.length) return null;
-    const minV = Math.min(...valid), maxV = Math.max(...valid);
-    // Scala assoluta per rendere le differenze proporzionali al valore reale
-    const absMin = 0, absMax = Math.max(25, maxV + 2);
-    const W = 300, H = 120, padL = 20, padB = 22, padT = 14, padR = 8;
-    const chartW = W - padL - padR, chartH = H - padB - padT;
-    const count = months.filter(m => m !== null).length;
-    if (!count) return null;
-    const slotW = chartW / 12;
-
-    // Calcola coordinate
-    const coords = months.map((m, i) => {
-      if (m === null) return null;
-      const ratio = (m - absMin) / (absMax - absMin || 1);
-      const minH = chartH * 0.1, maxH = chartH * 0.9;
-      const bh = minH + ratio * (maxH - minH);
-      const x = padL + i * slotW + slotW * 0.15;
-      const bw = slotW * 0.7;
-      const y = padT + (chartH - bh);
-      const cx = padL + i * slotW + slotW / 2;
-      const cy = padT + chartH - (minH + ratio * (maxH - minH));
-      return { x, bw, y, bh, cx, cy, val: m, col: priceColor(m, minV, maxV) };
+    const minV=Math.min(...valid), maxV=Math.max(...valid);
+    const absMin=0, absMax=Math.max(25,maxV+2);
+    const W=300,H=120,padL=20,padB=22,padT=14,padR=8;
+    const chartW=W-padL-padR, chartH=H-padB-padT;
+    const slotW=chartW/12;
+    const coords = months.map((m,i)=>{
+      if (m===null) return null;
+      const ratio=(m-absMin)/(absMax-absMin||1);
+      const minH=chartH*0.1, maxH=chartH*0.9;
+      const bh=minH+ratio*(maxH-minH);
+      const x=padL+i*slotW+slotW*0.15, bw=slotW*0.7;
+      const y=padT+(chartH-bh);
+      const cx=padL+i*slotW+slotW/2, cy=padT+chartH-(minH+ratio*(maxH-minH));
+      return {x,bw,y,bh,cx,cy,val:m,col:priceColor(m,minV,maxV)};
     });
-
-    const linePoints = coords.filter(Boolean).map(c => `${c.cx},${c.cy}`).join(' ');
-
+    const linePoints=coords.filter(Boolean).map(c=>`${c.cx},${c.cy}`).join(' ');
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', display:'block' }}>
-        {/* Griglia */}
-        {[0.25, 0.5, 0.75].map((r,i) => (
-          <line key={i} x1={padL} y1={padT + chartH*r} x2={W-padR} y2={padT + chartH*r} stroke="#f1f5f9" strokeWidth="1"/>
-        ))}
-        {/* Barre */}
-        {coords.map((c, i) => c && (
-          <rect key={i} x={c.x} y={c.y} width={c.bw} height={c.bh} rx="2" fill={c.col} fillOpacity="0.3"/>
-        ))}
-        {/* Linea trend */}
-        {linePoints && (
-          <polyline points={linePoints} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
-        )}
-        {/* Pallini e valori */}
-        {coords.map((c, i) => c && (
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',display:'block'}}>
+        {[0.25,0.5,0.75].map((r,i)=><line key={i} x1={padL} y1={padT+chartH*r} x2={W-padR} y2={padT+chartH*r} stroke="#f1f5f9" strokeWidth="1"/>)}
+        {coords.map((c,i)=>c&&<rect key={i} x={c.x} y={c.y} width={c.bw} height={c.bh} rx="2" fill={c.col} fillOpacity="0.3"/>)}
+        {linePoints&&<polyline points={linePoints} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>}
+        {coords.map((c,i)=>c&&(
           <g key={i}>
-            <circle cx={c.cx} cy={c.cy} r={c.val === minV || c.val === maxV ? 4 : 3} fill={c.val===minV?'#16a34a':c.val===maxV?'#dc2626':'#6366f1'} stroke="#fff" strokeWidth="1.5"/>
-            <text x={c.cx} y={c.y - 3} textAnchor="middle" fontSize="7" fill={c.col} fontWeight="700">{c.val.toFixed(1)}</text>
+            <circle cx={c.cx} cy={c.cy} r={c.val===minV||c.val===maxV?4:3} fill={c.val===minV?'#16a34a':c.val===maxV?'#dc2626':'#6366f1'} stroke="#fff" strokeWidth="1.5"/>
+            <text x={c.cx} y={c.y-3} textAnchor="middle" fontSize="7" fill={c.col} fontWeight="700">{c.val.toFixed(1)}</text>
           </g>
         ))}
-        {/* Etichette mesi */}
-        {MONTHS_IT.map((m, i) => {
-          const x = padL + i * slotW + slotW / 2;
-          return <text key={i} x={x} y={H-4} textAnchor="middle" fontSize="7" fill="#94a3b8">{m}</text>;
-        })}
+        {MONTHS_IT.map((m,i)=><text key={i} x={padL+i*slotW+slotW/2} y={H-4} textAnchor="middle" fontSize="7" fill="#94a3b8">{m}</text>)}
       </svg>
     );
   };
 
-  // ── Swipe ────────────────────────────────────────────────────────────────
+  // Swipe handlers
   const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const onTouchEnd   = (e) => {
-    if (touchStartX.current === null) return;
+    if (touchStartX.current===null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      if (view === 'daily') {
-        if (diff > 0) { // swipe sinistra
-          if (dayOffset > -1) setDayOffset(o => o-1);
-          else { setView('yearly'); setYearOffset(0); }
-        } else { // swipe destra
-          if (dayOffset < 1) setDayOffset(o => o+1);
-        }
-      } else { // yearly
-        if (diff > 0) { // swipe sinistra = anno precedente
-          if (yearOffset > -3) setYearOffset(o => o-1);
-        } else { // swipe destra = anno successivo o torna daily
-          if (yearOffset < 0) setYearOffset(o => o+1);
-          else { setView('daily'); setDayOffset(-1); }
-        }
+    if (Math.abs(diff)>50) {
+      if (view==='daily') {
+        if (diff>0){if (dayOffset>-1) setDayOffset(o=>o-1); else {setView('yearly');setYearOffset(0);}}
+        else       {if (dayOffset<1)  setDayOffset(o=>o+1);}
+      } else {
+        if (diff>0){if (yearOffset>-3) setYearOffset(o=>o-1);}
+        else       {if (yearOffset<0)  setYearOffset(o=>o+1); else {setView('daily');setDayOffset(-1);}}
       }
     }
     touchStartX.current = null;
@@ -243,31 +380,27 @@ export default function EnergyTime() {
   const handleCanvasClick = (e) => {
     if (!currentDailyData) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width);
-    const barW = Math.floor((canvasRef.current.width - 2) / 24) - 1;
-    const idx = Math.floor(x / (barW + 1));
-    if (idx >= 0 && idx < 24) setSelected(idx === selected ? null : idx);
+    const x = (e.clientX-rect.left)*(canvasRef.current.width/rect.width);
+    const barW = Math.floor((canvasRef.current.width-2)/24)-1;
+    const idx = Math.floor(x/(barW+1));
+    if (idx>=0&&idx<24) setSelected(idx===selected?null:idx);
   };
 
-  // ── Dati derivati ─────────────────────────────────────────────────────────
-  const prices = currentDailyData?.prices ?? [];
-  const minP   = prices.length ? Math.min(...prices) : 0;
-  const maxP   = prices.length ? Math.max(...prices) : 1;
-  const hour   = now.getHours();
-  const currP  = dayOffset === 0 && prices[hour] != null ? prices[hour] : null;
-  const bestH  = prices.indexOf(Math.min(...prices));
+  const prices = currentDailyData?.prices??[];
+  const minP=prices.length?Math.min(...prices):0, maxP=prices.length?Math.max(...prices):1;
+  const hour=now.getHours();
+  const currP=dayOffset===0&&prices[hour]!=null?prices[hour]:null;
+  const bestH=prices.indexOf(Math.min(...prices));
+  const mData=currentMonthlyData?.months??[];
+  const mValid=mData.filter(m=>m!==null);
+  const mMin=mValid.length?Math.min(...mValid):0, mMax=mValid.length?Math.max(...mValid):1;
+  const mAvg=mValid.length?mValid.reduce((a,b)=>a+b,0)/mValid.length:0;
 
-  const mData  = currentMonthlyData?.months ?? [];
-  const mValid = mData.filter(m => m !== null);
-  const mMin   = mValid.length ? Math.min(...mValid) : 0;
-  const mMax   = mValid.length ? Math.max(...mValid) : 1;
-  const mAvg   = mValid.length ? mValid.reduce((a,b)=>a+b,0)/mValid.length : 0;
-  const mMinM  = MONTHS_FULL[mData.indexOf(mMin < 999 ? mMin : 0)] ?? '';
-  const mMaxM  = MONTHS_FULL[mData.indexOf(mMax)] ?? '';
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={s.root} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+
+      {/* Tutorial overlay */}
+      {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
 
       {/* Header */}
       <div style={s.header}>
@@ -277,159 +410,120 @@ export default function EnergyTime() {
         </div>
         <div style={s.headerRight}>
           <span style={s.headerClock}>{pad2(now.getHours())}:{pad2(now.getMinutes())}</span>
-          <button onClick={() => view==='daily' ? loadDaily(dateStr) : loadMonthly(targetYear)} style={s.refreshBtn}>↻</button>
+          <button onClick={() => setShowTutorial(true)} style={{ ...s.refreshBtn, fontSize:16, marginRight:2 }} title="Tutorial">❓</button>
+          <button onClick={() => view==='daily'?loadDaily(dateStr):loadMonthly(targetYear)} style={s.refreshBtn}>↻</button>
         </div>
       </div>
 
-      {/* Navigazione */}
+      {/* Navigazione giorni/anni */}
       <div style={s.dayNav}>
-        <button
-          onClick={() => {
-            if (view==='daily') {
-              if (dayOffset > -1) setDayOffset(o=>o-1);
-              else { setView('yearly'); setYearOffset(0); }
-            } else {
-              if (yearOffset > -3) setYearOffset(o=>o-1);
-            }
-          }}
-          style={{ ...s.dayBtn, opacity: (view==='daily' && dayOffset<=-1 && false) || (view==='yearly' && yearOffset<=-3) ? 0.3 : 1 }}
-        >‹</button>
-
+        <button onClick={() => {
+          if (view==='daily'){if(dayOffset>-1)setDayOffset(o=>o-1);else{setView('yearly');setYearOffset(0);}}
+          else {if(yearOffset>-3)setYearOffset(o=>o-1);}
+        }} style={s.dayBtn}>‹</button>
         <div style={s.dayCenter}>
-          {view === 'daily' ? (
+          {view==='daily' ? (
             <>
-              <div style={{ ...s.dayLabel, color: dayOffset===0 ? '#16a34a' : '#1e293b' }}>
-                {dayOffset===0 ? '📅 Oggi' : dayOffset===1 ? '📅 Domani' : '📅 Ieri'}
+              <div style={{...s.dayLabel,color:dayOffset===0?'#16a34a':'#1e293b'}}>
+                {dayOffset===0?'📅 Oggi':dayOffset===1?'📅 Domani':'📅 Ieri'}
               </div>
-              <div style={s.dayDate}>
-                {currentDate.toLocaleDateString('it-IT', { weekday:'long', day:'numeric', month:'long' })}
-              </div>
+              <div style={s.dayDate}>{currentDate.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})}</div>
             </>
           ) : (
             <>
-              <div style={{ ...s.dayLabel, color:'#6366f1' }}>
-                📊 Anno {targetYear}
-              </div>
+              <div style={{...s.dayLabel,color:'#6366f1'}}>📊 Anno {targetYear}</div>
               <div style={s.dayDate}>Media mensile PUN</div>
             </>
           )}
         </div>
-
-        <button
-          onClick={() => {
-            if (view==='yearly') {
-              if (yearOffset < 0) setYearOffset(o=>o+1);
-              else { setView('daily'); setDayOffset(-1); }
-            } else {
-              if (dayOffset < 1) setDayOffset(o=>o+1);
-            }
-          }}
-          style={{ ...s.dayBtn, opacity: (view==='daily' && dayOffset>=1) ? 0.3 : 1 }}
-          disabled={view==='daily' && dayOffset>=1}
-        >›</button>
+        <button onClick={() => {
+          if (view==='yearly'){if(yearOffset<0)setYearOffset(o=>o+1);else{setView('daily');setDayOffset(-1);}}
+          else {if(dayOffset<1)setDayOffset(o=>o+1);}
+        }} style={{...s.dayBtn,opacity:view==='daily'&&dayOffset>=1?0.3:1}} disabled={view==='daily'&&dayOffset>=1}>›</button>
       </div>
 
       <div style={s.swipeHint}>← scorri per cambiare {view==='daily'?'giorno':'anno'} →</div>
 
-      {loading && (
-        <div style={s.centerMsg}>
-          <div style={s.spinner} />
-          <p style={s.loadText}>{view==='yearly' ? 'Carico dati annuali...' : 'Carico prezzi...'}</p>
-        </div>
-      )}
-      {error && !loading && (
-        <div style={s.errorBox}>
-          ⚠️ {error}
-          <button onClick={() => view==='daily' ? loadDaily(dateStr) : loadMonthly(targetYear)} style={s.retryBtn}>Riprova</button>
-        </div>
-      )}
+      {loading && <div style={s.centerMsg}><div style={s.spinner}/><p style={s.loadText}>{view==='yearly'?'Carico dati annuali...':'Carico prezzi...'}</p></div>}
+      {error&&!loading && <div style={s.errorBox}>⚠️ {error}<button onClick={()=>view==='daily'?loadDaily(dateStr):loadMonthly(targetYear)} style={s.retryBtn}>Riprova</button></div>}
 
       {/* ── VISTA GIORNALIERA ── */}
-      {!loading && !error && view==='daily' && currentDailyData && (
+      {!loading&&!error&&view==='daily'&&currentDailyData&&(
         <>
-          {dayOffset===0 && currP !== null && (
+          {dayOffset===0&&currP!==null&&(
             <div style={s.hero}>
               <div style={s.heroLeft}>
                 <div style={s.heroLabel}>ORA ATTUALE</div>
                 <div style={s.heroTime}>ore {pad2(hour)}:00</div>
-                <div style={{ ...s.heroBadge, background: priceBg(currP,minP,maxP), color: priceColor(currP,minP,maxP) }}>
+                <div style={{...s.heroBadge,background:priceBg(currP,minP,maxP),color:priceColor(currP,minP,maxP)}}>
                   {priceTag(currP,minP,maxP).icon} {priceTag(currP,minP,maxP).text}
                 </div>
               </div>
               <div style={s.heroRight}>
-                <span style={{ ...s.heroPrice, color: priceColor(currP,minP,maxP) }}>{currP.toFixed(1)}</span>
+                <span style={{...s.heroPrice,color:priceColor(currP,minP,maxP)}}>{currP.toFixed(1)}</span>
                 <span style={s.heroUnit}>€ct/kWh</span>
               </div>
             </div>
           )}
-
-          {prices.length > 0 && (
+          {prices.length>0&&(
             <div style={s.bestBanner}>
               <span>💚</span>
               <span>Ora più conveniente: <strong style={{color:'#15803d'}}>ore {pad2(bestH)}:00</strong> → {minP.toFixed(1)} €ct/kWh</span>
             </div>
           )}
-
           <div style={s.sourceRow}>
-            <span style={{ color: currentDailyData.isReal ? '#16a34a' : '#d97706', fontSize:10 }}>●</span>
+            <span style={{color:currentDailyData.isReal?'#16a34a':'#d97706',fontSize:10}}>●</span>
             <span style={s.sourceText}>{currentDailyData.source}</span>
-            {dayOffset===1 && !currentDailyData.isReal && <span style={s.tomorrowNote}>⏰ disponibile dopo le 14:00</span>}
+            {dayOffset===1&&!currentDailyData.isReal&&<span style={s.tomorrowNote}>⏰ disponibile dopo le 14:00</span>}
           </div>
-
           <div style={s.tabs}>
             {[{id:'chart',label:'📊 Grafico'},{id:'slots',label:'🕐 Fasce'},{id:'appliances',label:'🏠 Elettrod.'}].map(t=>(
-              <button key={t.id} onClick={()=>{setTab(t.id);setSelected(null);}} style={{...s.tab,...(tab===t.id?s.tabOn:{})}}>
-                {t.label}
-              </button>
+              <button key={t.id} onClick={()=>{setTab(t.id);setSelected(null);}} style={{...s.tab,...(tab===t.id?s.tabOn:{})}}>{t.label}</button>
             ))}
           </div>
 
-          {tab==='chart' && (
+          {tab==='chart'&&(
             <div style={s.panel}>
               <div style={s.legend}>
                 <span><span style={{color:'#16a34a'}}>■</span> Basso</span>
                 <span><span style={{color:'#d97706'}}>■</span> Medio</span>
                 <span><span style={{color:'#dc2626'}}>■</span> Alto</span>
-                {dayOffset===0 && <span style={{color:'#94a3b8'}}>■ Ora attuale</span>}
+                {dayOffset===0&&<span style={{color:'#94a3b8'}}>■ Ora attuale</span>}
               </div>
               <canvas ref={canvasRef} width={340} height={150} style={s.canvas} onClick={handleCanvasClick}/>
-              {selected !== null && prices[selected] != null ? (
-                <div style={{...s.selBox, borderColor: priceColor(prices[selected],minP,maxP)}}>
+              {selected!==null&&prices[selected]!=null?(
+                <div style={{...s.selBox,borderColor:priceColor(prices[selected],minP,maxP)}}>
                   <span style={s.selHour}>Ore {pad2(selected)}:00 – {pad2(selected+1)}:00</span>
-                  <span style={{fontWeight:700, color:priceColor(prices[selected],minP,maxP), fontSize:18}}>
-                    {prices[selected].toFixed(2)} €ct/kWh
-                  </span>
-                  <span style={{...s.selBadge, background:priceBg(prices[selected],minP,maxP), color:priceColor(prices[selected],minP,maxP)}}>
-                    {priceTag(prices[selected],minP,maxP).icon} {priceTag(prices[selected],minP,maxP).text}
-                  </span>
+                  <span style={{fontWeight:700,color:priceColor(prices[selected],minP,maxP),fontSize:18}}>{prices[selected].toFixed(2)} €ct/kWh</span>
+                  <span style={{...s.selBadge,background:priceBg(prices[selected],minP,maxP),color:priceColor(prices[selected],minP,maxP)}}>{priceTag(prices[selected],minP,maxP).icon} {priceTag(prices[selected],minP,maxP).text}</span>
                 </div>
-              ) : (
+              ):(
                 <div style={s.hint}>Tocca una barra per vedere il dettaglio</div>
               )}
               <div style={s.list}>
                 {prices.map((p,i)=>(
                   <div key={i} onClick={()=>setSelected(i===selected?null:i)}
-                    style={{...s.listRow, background:(dayOffset===0&&i===hour)?'#f0fdf4':i===selected?priceBg(p,minP,maxP):'#fff', borderLeft:`4px solid ${(dayOffset===0&&i===hour)?'#15803d':priceColor(p,minP,maxP)}`}}>
+                    style={{...s.listRow,background:(dayOffset===0&&i===hour)?'#f0fdf4':i===selected?priceBg(p,minP,maxP):'#fff',borderLeft:`4px solid ${(dayOffset===0&&i===hour)?'#15803d':priceColor(p,minP,maxP)}`}}>
                     <span style={s.listHour}>{pad2(i)}:00</span>
-                    <div style={s.listBarBg}><div style={{...s.listBar,width:`${8 + ((p-minP)/(maxP-minP||1))*92}%`,background:priceColor(p,minP,maxP)}}/></div>
+                    <div style={s.listBarBg}><div style={{...s.listBar,width:`${8+((p-minP)/(maxP-minP||1))*92}%`,background:priceColor(p,minP,maxP)}}/></div>
                     <span style={{...s.listVal,color:priceColor(p,minP,maxP)}}>{p.toFixed(1)}</span>
-                    {p===minP && <span>💚</span>}
-                    {dayOffset===0&&i===hour && <span style={s.nowChip}>ORA</span>}
+                    {p===minP&&<span>💚</span>}
+                    {dayOffset===0&&i===hour&&<span style={s.nowChip}>ORA</span>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {tab==='slots' && (
+          {tab==='slots'&&(
             <div style={s.panel}>
               <div style={s.sectionTitle}>Fasce orarie</div>
               {SLOTS.map(slot=>{
                 const sp=prices.slice(slot.range[0],slot.range[1]+1);
                 const avg=sp.length?sp.reduce((a,b)=>a+b,0)/sp.length:10;
-                const col=priceColor(avg,minP,maxP), bg=priceBg(avg,minP,maxP), tag=priceTag(avg,minP,maxP);
+                const col=priceColor(avg,minP,maxP),bg=priceBg(avg,minP,maxP),tag=priceTag(avg,minP,maxP);
                 const isNow=dayOffset===0&&hour>=slot.range[0]&&hour<=slot.range[1];
-                return (
+                return(
                   <div key={slot.label} style={{...s.slotCard,borderLeft:`4px solid ${col}`,background:isNow?bg:'#fff'}}>
                     <div style={s.slotTop}>
                       <span style={s.slotLabel}>{slot.label}</span>
@@ -438,23 +532,22 @@ export default function EnergyTime() {
                       <span style={{...s.slotBadge,background:bg,color:col}}>{tag.icon} {avg.toFixed(1)} €ct</span>
                     </div>
                     <div style={s.slotTip}>{slot.tip}</div>
-                    <div style={s.slotMini}>
-                      {sp.map((p,k)=>{const r=(p-minP)/(maxP-minP||1);return<div key={k} style={{flex:1,height:`${8+r*20}px`,background:priceColor(p,minP,maxP),borderRadius:2}}/>;})}</div>
+                    <div style={s.slotMini}>{sp.map((p,k)=>{const r=(p-minP)/(maxP-minP||1);return<div key={k} style={{flex:1,height:`${8+r*20}px`,background:priceColor(p,minP,maxP),borderRadius:2}}/>;})}</div>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {tab==='appliances' && (
+          {tab==='appliances'&&(
             <div style={s.panel}>
               <div style={s.sectionTitle}>Quando usare i tuoi elettrodomestici?</div>
               <p style={s.sectionSub}>Basato sui prezzi {dayOffset===0?'di oggi':dayOffset===1?'di domani':'di ieri'}</p>
               {APPLIANCES.map(app=>{
                 const costs=prices.map((p,i)=>({h:i,cost:(p*app.kw*app.hours)/100})).sort((a,b)=>a.cost-b.cost);
-                const best3=costs.slice(0,3), worst=costs[costs.length-1];
+                const best3=costs.slice(0,3),worst=costs[costs.length-1];
                 const saving=((worst.cost-best3[0].cost)/worst.cost*100).toFixed(0);
-                return (
+                return(
                   <div key={app.name} style={s.appCard}>
                     <div style={s.appHead}>
                       <span style={s.appIcon}>{app.icon}</span>
@@ -479,63 +572,35 @@ export default function EnergyTime() {
       )}
 
       {/* ── VISTA ANNUALE ── */}
-      {!loading && !error && view==='yearly' && currentMonthlyData && (
+      {!loading&&!error&&view==='yearly'&&currentMonthlyData&&(
         <div style={s.panel}>
-
-          {/* Stat cards */}
           <div style={s.statRow}>
-            <div style={s.statCard}>
-              <div style={s.statLabel}>Minimo</div>
-              <div style={{...s.statVal, color:'#16a34a'}}>{mMin.toFixed(1)}</div>
-              <div style={s.statMonth}>{mMinM.slice(0,3)}</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={s.statLabel}>Media annua</div>
-              <div style={{...s.statVal, color:'#d97706'}}>{mAvg.toFixed(1)}</div>
-              <div style={s.statMonth}>€ct/kWh</div>
-            </div>
-            <div style={s.statCard}>
-              <div style={s.statLabel}>Massimo</div>
-              <div style={{...s.statVal, color:'#dc2626'}}>{mMax.toFixed(1)}</div>
-              <div style={s.statMonth}>{mMaxM.slice(0,3)}</div>
-            </div>
+            <div style={s.statCard}><div style={s.statLabel}>Minimo</div><div style={{...s.statVal,color:'#16a34a'}}>{mMin.toFixed(1)}</div><div style={s.statMonth}>{MONTHS_FULL[mData.indexOf(mMin)]?.slice(0,3)??''}</div></div>
+            <div style={s.statCard}><div style={s.statLabel}>Media annua</div><div style={{...s.statVal,color:'#d97706'}}>{mAvg.toFixed(1)}</div><div style={s.statMonth}>€ct/kWh</div></div>
+            <div style={s.statCard}><div style={s.statLabel}>Massimo</div><div style={{...s.statVal,color:'#dc2626'}}>{mMax.toFixed(1)}</div><div style={s.statMonth}>{MONTHS_FULL[mData.indexOf(mMax)]?.slice(0,3)??''}</div></div>
           </div>
-
-          {/* Grafico barre + linea */}
           <div style={s.chartWrap}>
-            <div style={s.chartLabel}>
-              Andamento mensile · linea = trend
-              <span style={{...s.legendDot, background:'#6366f1'}} /> trend
-              <span style={{...s.legendDot, background:'#16a34a33', border:'1px solid #16a34a'}} /> barre
-            </div>
+            <div style={s.chartLabel}>Andamento mensile · <span style={{color:'#6366f1'}}>— trend</span> · barre colorate</div>
             {renderMonthlyChart(mData)}
           </div>
-
-          {/* Lista mesi */}
           <div style={s.sectionTitle}>Dettaglio per mese</div>
-          {mData.map((val, i) => (
+          {mData.map((val,i)=>(
             <div key={i} style={s.monthRow}>
               <span style={s.monthName}>{MONTHS_IT[i]}</span>
-              {val !== null ? (
+              {val!==null?(
                 <>
-                  <div style={s.monthBarBg}>
-                    <div style={{...s.monthBarFill, width:`${(val / Math.max(25, mMax+2))*100}%`, background:priceColor(val,mMin,mMax)}}/>
-                  </div>
-                  <span style={{...s.monthVal, color:priceColor(val,mMin,mMax)}}>{val.toFixed(1)}</span>
-                  {val===mMin && <span style={{fontSize:12}}>💚</span>}
-                  {val===mMax && <span style={{fontSize:12}}>🔴</span>}
+                  <div style={s.monthBarBg}><div style={{...s.monthBarFill,width:`${(val/Math.max(25,mMax+2))*100}%`,background:priceColor(val,mMin,mMax)}}/></div>
+                  <span style={{...s.monthVal,color:priceColor(val,mMin,mMax)}}>{val.toFixed(1)}</span>
+                  {val===mMin&&<span style={{fontSize:12}}>💚</span>}
+                  {val===mMax&&<span style={{fontSize:12}}>🔴</span>}
                 </>
-              ) : (
-                <>
-                  <div style={{...s.monthBarBg, background:'#f8faff'}}/>
-                  <span style={{fontSize:11, color:'#cbd5e1', width:38, textAlign:'right'}}>–</span>
-                </>
+              ):(
+                <><div style={{...s.monthBarBg,background:'#f8faff'}}/><span style={{fontSize:11,color:'#cbd5e1',width:38,textAlign:'right'}}>–</span></>
               )}
             </div>
           ))}
-
-          <div style={{...s.sourceRow, marginTop:10}}>
-            <span style={{color:currentMonthlyData.isReal?'#16a34a':'#d97706', fontSize:10}}>●</span>
+          <div style={{...s.sourceRow,marginTop:10}}>
+            <span style={{color:currentMonthlyData.isReal?'#16a34a':'#d97706',fontSize:10}}>●</span>
             <span style={s.sourceText}>{currentMonthlyData.source}</span>
           </div>
         </div>
@@ -544,101 +609,99 @@ export default function EnergyTime() {
       <div style={s.footer}>📡 Dati PUN · ENTSO-E / mercatoelettrico.org</div>
 
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #f8faff; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 2px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{background:#f8faff;}
+        ::-webkit-scrollbar{width:4px;}
+        ::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:2px;}
+        @keyframes spin{to{transform:rotate(360deg);}}
       `}</style>
     </div>
   );
 }
 
 const s = {
-  root: { fontFamily:"'Inter','Helvetica Neue',sans-serif", background:'#f8faff', color:'#1e293b', minHeight:'100vh', maxWidth:400, margin:'0 auto', paddingBottom:70 },
-  header: { background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, zIndex:10 },
-  headerLeft: { display:'flex', alignItems:'center', gap:8 },
-  headerIcon: { fontSize:20 },
-  headerTitle: { fontSize:18, fontWeight:700, color:'#1e293b' },
-  headerRight: { display:'flex', alignItems:'center', gap:10 },
-  headerClock: { fontSize:14, fontWeight:600, color:'#64748b' },
-  refreshBtn: { background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#16a34a', padding:'2px 4px' },
-  dayNav: { display:'flex', alignItems:'center', justifyContent:'space-between', background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'10px 16px' },
-  dayBtn: { background:'none', border:'none', fontSize:28, cursor:'pointer', color:'#16a34a', padding:'0 8px', fontWeight:300 },
-  dayCenter: { textAlign:'center', flex:1 },
-  dayLabel: { fontSize:15, fontWeight:700 },
-  dayDate: { fontSize:12, color:'#94a3b8', marginTop:1, textTransform:'capitalize' },
-  swipeHint: { textAlign:'center', fontSize:10, color:'#cbd5e1', padding:'4px 0' },
-  centerMsg: { display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:200, gap:12 },
-  spinner: { width:32, height:32, border:'3px solid #e2e8f0', borderTopColor:'#16a34a', borderRadius:'50%', animation:'spin 0.9s linear infinite' },
-  loadText: { fontSize:14, color:'#64748b' },
-  errorBox: { margin:16, padding:14, background:'#fee2e2', border:'1px solid #fca5a5', borderRadius:12, fontSize:13, color:'#dc2626', display:'flex', gap:10, alignItems:'center' },
-  retryBtn: { marginLeft:'auto', background:'#fff', border:'1px solid #dc2626', color:'#dc2626', borderRadius:8, padding:'4px 12px', fontSize:12, cursor:'pointer' },
-  hero: { margin:'12px 14px 0', background:'#fff', border:'1px solid #e2e8f0', borderRadius:16, padding:'16px 18px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 1px 4px #0000000a' },
-  heroLeft: { display:'flex', flexDirection:'column', gap:6 },
-  heroLabel: { fontSize:10, color:'#94a3b8', letterSpacing:2, fontWeight:600, textTransform:'uppercase' },
-  heroTime: { fontSize:26, fontWeight:800, color:'#1e293b' },
-  heroBadge: { display:'inline-flex', gap:5, alignItems:'center', borderRadius:20, padding:'4px 12px', fontSize:13, fontWeight:700 },
-  heroRight: { display:'flex', alignItems:'baseline', gap:4 },
-  heroPrice: { fontSize:56, fontWeight:900, lineHeight:1 },
-  heroUnit: { fontSize:13, color:'#94a3b8' },
-  bestBanner: { margin:'10px 14px 0', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:12, padding:'10px 14px', fontSize:13, color:'#166534', display:'flex', gap:8, alignItems:'center' },
-  sourceRow: { margin:'8px 14px 0', display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' },
-  sourceText: { fontSize:11, color:'#94a3b8' },
-  tomorrowNote: { fontSize:10, color:'#d97706', background:'#fef3c7', padding:'2px 8px', borderRadius:8 },
-  tabs: { display:'flex', margin:'10px 14px 0', gap:6 },
-  tab: { flex:1, padding:'9px 4px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, color:'#64748b', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' },
-  tabOn: { background:'#f0fdf4', border:'1px solid #86efac', color:'#15803d' },
-  panel: { margin:'10px 14px 0' },
-  legend: { display:'flex', gap:10, fontSize:10, color:'#94a3b8', marginBottom:8, flexWrap:'wrap' },
-  canvas: { width:'100%', borderRadius:12, background:'#fff', border:'1px solid #e2e8f0', cursor:'pointer', display:'block' },
-  selBox: { marginTop:8, padding:'10px 14px', background:'#fff', borderRadius:10, border:'1px solid', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:6 },
-  selHour: { fontSize:13, fontWeight:600, color:'#1e293b' },
-  selBadge: { padding:'3px 10px', borderRadius:10, fontSize:11, fontWeight:700 },
-  hint: { textAlign:'center', fontSize:12, color:'#cbd5e1', marginTop:6 },
-  list: { marginTop:8, maxHeight:280, overflowY:'auto', display:'flex', flexDirection:'column', gap:3 },
-  listRow: { display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:8, cursor:'pointer', border:'1px solid #f1f5f9' },
-  listHour: { fontSize:12, fontWeight:700, color:'#64748b', width:34, flexShrink:0 },
-  listBarBg: { flex:1, height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' },
-  listBar: { height:'100%', borderRadius:3 },
-  listVal: { fontSize:13, fontWeight:700, width:34, textAlign:'right' },
-  nowChip: { fontSize:9, background:'#dcfce7', color:'#15803d', borderRadius:4, padding:'2px 5px', fontWeight:800 },
-  sectionTitle: { fontSize:13, fontWeight:700, color:'#475569', letterSpacing:0.5, textTransform:'uppercase', marginBottom:4 },
-  sectionSub: { fontSize:11, color:'#94a3b8', marginBottom:10 },
-  slotCard: { marginBottom:8, padding:'12px 14px', background:'#fff', borderRadius:12, border:'1px solid #e2e8f0', boxShadow:'0 1px 3px #0000000a' },
-  slotTop: { display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' },
-  slotLabel: { flex:1, fontSize:13, fontWeight:700, color:'#1e293b' },
-  slotBadge: { fontSize:11, padding:'3px 10px', borderRadius:10, fontWeight:700 },
-  slotTip: { fontSize:12, color:'#64748b', marginBottom:8, lineHeight:1.5 },
-  slotMini: { display:'flex', gap:2, alignItems:'flex-end', height:24 },
-  appCard: { marginBottom:10, padding:'12px 14px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:14, boxShadow:'0 1px 3px #0000000a' },
-  appHead: { display:'flex', gap:10, alignItems:'center', marginBottom:10 },
-  appIcon: { fontSize:26 },
-  appName: { fontSize:15, fontWeight:700, color:'#1e293b' },
-  appSub: { fontSize:11, color:'#94a3b8', marginTop:1 },
-  appSaving: { textAlign:'right' },
-  appSavingN: { fontSize:22, fontWeight:800, color:'#16a34a' },
-  appSavingL: { fontSize:10, color:'#94a3b8' },
-  appBest: { display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:6 },
-  appBestLbl: { fontSize:11, color:'#15803d', fontWeight:700 },
-  greenChip: { background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:'3px 9px', fontSize:12, color:'#15803d', fontWeight:700 },
-  appWorst: { display:'flex', alignItems:'center', gap:6 },
-  appWorstLbl: { fontSize:11, color:'#dc2626', fontWeight:700 },
-  redChip: { background:'#fee2e2', border:'1px solid #fca5a5', borderRadius:8, padding:'3px 9px', fontSize:12, color:'#dc2626', fontWeight:700 },
-  appWorstNote: { fontSize:11, color:'#94a3b8' },
-  // Yearly styles
-  statRow: { display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:12 },
-  statCard: { background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'8px 10px', textAlign:'center' },
-  statLabel: { fontSize:10, color:'#94a3b8' },
-  statVal: { fontSize:20, fontWeight:800 },
-  statMonth: { fontSize:10, color:'#94a3b8' },
-  chartWrap: { background:'#fff', border:'1px solid #e2e8f0', borderRadius:12, padding:'12px', marginBottom:12 },
-  chartLabel: { fontSize:10, color:'#94a3b8', marginBottom:6, display:'flex', alignItems:'center', gap:6 },
-  legendDot: { display:'inline-block', width:10, height:10, borderRadius:2 },
-  monthRow: { display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:'1px solid #f1f5f9' },
-  monthName: { fontSize:12, fontWeight:700, color:'#1e293b', width:28 },
-  monthBarBg: { flex:1, height:6, background:'#f1f5f9', borderRadius:3, overflow:'hidden' },
-  monthBarFill: { height:'100%', borderRadius:3 },
-  monthVal: { fontSize:13, fontWeight:700, width:34, textAlign:'right' },
-  footer: { position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:400, background:'#ffffffee', borderTop:'1px solid #e2e8f0', padding:'10px 14px 12px', backdropFilter:'blur(10px)', fontSize:10, color:'#94a3b8', textAlign:'center', zIndex:10 },
+  root:{fontFamily:"'Inter','Helvetica Neue',sans-serif",background:'#f8faff',color:'#1e293b',minHeight:'100vh',maxWidth:400,margin:'0 auto',paddingBottom:70},
+  header:{background:'#fff',borderBottom:'1px solid #e2e8f0',padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',position:'sticky',top:0,zIndex:10},
+  headerLeft:{display:'flex',alignItems:'center',gap:8},
+  headerIcon:{fontSize:20},
+  headerTitle:{fontSize:18,fontWeight:700,color:'#1e293b'},
+  headerRight:{display:'flex',alignItems:'center',gap:6},
+  headerClock:{fontSize:14,fontWeight:600,color:'#64748b'},
+  refreshBtn:{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#16a34a',padding:'2px 4px'},
+  dayNav:{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#fff',borderBottom:'1px solid #e2e8f0',padding:'10px 16px'},
+  dayBtn:{background:'none',border:'none',fontSize:28,cursor:'pointer',color:'#16a34a',padding:'0 8px',fontWeight:300},
+  dayCenter:{textAlign:'center',flex:1},
+  dayLabel:{fontSize:15,fontWeight:700},
+  dayDate:{fontSize:12,color:'#94a3b8',marginTop:1,textTransform:'capitalize'},
+  swipeHint:{textAlign:'center',fontSize:10,color:'#cbd5e1',padding:'4px 0'},
+  centerMsg:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:200,gap:12},
+  spinner:{width:32,height:32,border:'3px solid #e2e8f0',borderTopColor:'#16a34a',borderRadius:'50%',animation:'spin 0.9s linear infinite'},
+  loadText:{fontSize:14,color:'#64748b'},
+  errorBox:{margin:16,padding:14,background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:12,fontSize:13,color:'#dc2626',display:'flex',gap:10,alignItems:'center'},
+  retryBtn:{marginLeft:'auto',background:'#fff',border:'1px solid #dc2626',color:'#dc2626',borderRadius:8,padding:'4px 12px',fontSize:12,cursor:'pointer'},
+  hero:{margin:'12px 14px 0',background:'#fff',border:'1px solid #e2e8f0',borderRadius:16,padding:'16px 18px',display:'flex',justifyContent:'space-between',alignItems:'center',boxShadow:'0 1px 4px #0000000a'},
+  heroLeft:{display:'flex',flexDirection:'column',gap:6},
+  heroLabel:{fontSize:10,color:'#94a3b8',letterSpacing:2,fontWeight:600,textTransform:'uppercase'},
+  heroTime:{fontSize:26,fontWeight:800,color:'#1e293b'},
+  heroBadge:{display:'inline-flex',gap:5,alignItems:'center',borderRadius:20,padding:'4px 12px',fontSize:13,fontWeight:700},
+  heroRight:{display:'flex',alignItems:'baseline',gap:4},
+  heroPrice:{fontSize:56,fontWeight:900,lineHeight:1},
+  heroUnit:{fontSize:13,color:'#94a3b8'},
+  bestBanner:{margin:'10px 14px 0',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:12,padding:'10px 14px',fontSize:13,color:'#166534',display:'flex',gap:8,alignItems:'center'},
+  sourceRow:{margin:'8px 14px 0',display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'},
+  sourceText:{fontSize:11,color:'#94a3b8'},
+  tomorrowNote:{fontSize:10,color:'#d97706',background:'#fef3c7',padding:'2px 8px',borderRadius:8},
+  tabs:{display:'flex',margin:'10px 14px 0',gap:6},
+  tab:{flex:1,padding:'9px 4px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,color:'#64748b',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all .15s'},
+  tabOn:{background:'#f0fdf4',border:'1px solid #86efac',color:'#15803d'},
+  panel:{margin:'10px 14px 0'},
+  legend:{display:'flex',gap:10,fontSize:10,color:'#94a3b8',marginBottom:8,flexWrap:'wrap'},
+  canvas:{width:'100%',borderRadius:12,background:'#fff',border:'1px solid #e2e8f0',cursor:'pointer',display:'block'},
+  selBox:{marginTop:8,padding:'10px 14px',background:'#fff',borderRadius:10,border:'1px solid',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:6},
+  selHour:{fontSize:13,fontWeight:600,color:'#1e293b'},
+  selBadge:{padding:'3px 10px',borderRadius:10,fontSize:11,fontWeight:700},
+  hint:{textAlign:'center',fontSize:12,color:'#cbd5e1',marginTop:6},
+  list:{marginTop:8,maxHeight:280,overflowY:'auto',display:'flex',flexDirection:'column',gap:3},
+  listRow:{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',borderRadius:8,cursor:'pointer',border:'1px solid #f1f5f9'},
+  listHour:{fontSize:12,fontWeight:700,color:'#64748b',width:34,flexShrink:0},
+  listBarBg:{flex:1,height:6,background:'#f1f5f9',borderRadius:3,overflow:'hidden'},
+  listBar:{height:'100%',borderRadius:3},
+  listVal:{fontSize:13,fontWeight:700,width:34,textAlign:'right'},
+  nowChip:{fontSize:9,background:'#dcfce7',color:'#15803d',borderRadius:4,padding:'2px 5px',fontWeight:800},
+  sectionTitle:{fontSize:13,fontWeight:700,color:'#475569',letterSpacing:0.5,textTransform:'uppercase',marginBottom:4},
+  sectionSub:{fontSize:11,color:'#94a3b8',marginBottom:10},
+  slotCard:{marginBottom:8,padding:'12px 14px',background:'#fff',borderRadius:12,border:'1px solid #e2e8f0',boxShadow:'0 1px 3px #0000000a'},
+  slotTop:{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'},
+  slotLabel:{flex:1,fontSize:13,fontWeight:700,color:'#1e293b'},
+  slotBadge:{fontSize:11,padding:'3px 10px',borderRadius:10,fontWeight:700},
+  slotTip:{fontSize:12,color:'#64748b',marginBottom:8,lineHeight:1.5},
+  slotMini:{display:'flex',gap:2,alignItems:'flex-end',height:24},
+  appCard:{marginBottom:10,padding:'12px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,boxShadow:'0 1px 3px #0000000a'},
+  appHead:{display:'flex',gap:10,alignItems:'center',marginBottom:10},
+  appIcon:{fontSize:26},
+  appName:{fontSize:15,fontWeight:700,color:'#1e293b'},
+  appSub:{fontSize:11,color:'#94a3b8',marginTop:1},
+  appSaving:{textAlign:'right'},
+  appSavingN:{fontSize:22,fontWeight:800,color:'#16a34a'},
+  appSavingL:{fontSize:10,color:'#94a3b8'},
+  appBest:{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:6},
+  appBestLbl:{fontSize:11,color:'#15803d',fontWeight:700},
+  greenChip:{background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'3px 9px',fontSize:12,color:'#15803d',fontWeight:700},
+  appWorst:{display:'flex',alignItems:'center',gap:6},
+  appWorstLbl:{fontSize:11,color:'#dc2626',fontWeight:700},
+  redChip:{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:8,padding:'3px 9px',fontSize:12,color:'#dc2626',fontWeight:700},
+  appWorstNote:{fontSize:11,color:'#94a3b8'},
+  statRow:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12},
+  statCard:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:10,padding:'8px 10px',textAlign:'center'},
+  statLabel:{fontSize:10,color:'#94a3b8'},
+  statVal:{fontSize:20,fontWeight:800},
+  statMonth:{fontSize:10,color:'#94a3b8'},
+  chartWrap:{background:'#fff',border:'1px solid #e2e8f0',borderRadius:12,padding:'12px',marginBottom:12},
+  chartLabel:{fontSize:10,color:'#94a3b8',marginBottom:6},
+  monthRow:{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid #f1f5f9'},
+  monthName:{fontSize:12,fontWeight:700,color:'#1e293b',width:28},
+  monthBarBg:{flex:1,height:6,background:'#f1f5f9',borderRadius:3,overflow:'hidden'},
+  monthBarFill:{height:'100%',borderRadius:3},
+  monthVal:{fontSize:13,fontWeight:700,width:34,textAlign:'right'},
+  footer:{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:400,background:'#ffffffee',borderTop:'1px solid #e2e8f0',padding:'10px 14px 12px',backdropFilter:'blur(10px)',fontSize:10,color:'#94a3b8',textAlign:'center',zIndex:10},
 };
