@@ -46,14 +46,42 @@ async function fetchFromENTSOE(token, date) {
 
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=${domain}&out_Domain=${domain}&periodStart=${fmt(yesterday,'2200')}&periodEnd=${fmt(date,'2200')}&securityToken=${token}`;
 
-  console.log('[EnergyTime] Richiesta ENTSO-E zona IT-Centre-North');
-
   const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
   const xml = await response.text();
 
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${xml.slice(0, 150)}`);
 
-  return parseENTSOEXml(xml);
+  const rawPrices = parseENTSOEXml(xml);
+
+  // Corregge lo sfasamento UTC → ora italiana (UTC+2 in estate)
+  const utcOffset = getItalyUTCOffset(date); // +1 inverno, +2 estate
+  return shiftForTimezone(rawPrices, utcOffset);
+}
+
+// Calcola offset UTC dell'Italia per la data specificata
+// Italia: CET (UTC+1) in inverno, CEST (UTC+2) in estate
+function getItalyUTCOffset(date) {
+  // Ora legale in Italia: ultima domenica di marzo → ultima domenica di ottobre
+  const year = date.getFullYear();
+
+  // Ultima domenica di marzo
+  const lastSundayMarch = new Date(year, 2, 31);
+  lastSundayMarch.setDate(31 - lastSundayMarch.getDay());
+
+  // Ultima domenica di ottobre
+  const lastSundayOctober = new Date(year, 9, 31);
+  lastSundayOctober.setDate(31 - lastSundayOctober.getDay());
+
+  const isDST = date >= lastSundayMarch && date < lastSundayOctober;
+  return isDST ? 2 : 1;
+}
+
+// Sposta i prezzi di N ore per correggere UTC → ora locale
+function shiftForTimezone(prices, hoursToShift) {
+  return prices.map((_, i) => {
+    const srcIndex = (i - hoursToShift + 24) % 24;
+    return prices[srcIndex];
+  });
 }
 
 function parseENTSOEXml(xml) {
