@@ -517,7 +517,7 @@ export default function EnergyTime() {
               {val !== null ? (
                 <>
                   <div style={s.monthBarBg}>
-                    <div style={{...s.monthBarFill, width:`${((val-mMin)/(mMax-mMin||1))*100}%`, background:priceColor(val,mMin,mMax)}}/>
+                    <div style={{...s.monthBarFill, width:`${8 + ((val-mMin)/(mMax-mMin||1))*92}%`, background:priceColor(val,mMin,mMax)}}/>
                   </div>
                   <span style={{...s.monthVal, color:priceColor(val,mMin,mMax)}}>{val.toFixed(1)}</span>
                   {val===mMin && <span style={{fontSize:12}}>💚</span>}
