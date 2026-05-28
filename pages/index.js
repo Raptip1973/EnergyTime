@@ -43,24 +43,17 @@ function toDateStr(d) {
 function addDays(d, n) {
   const r = new Date(d); r.setDate(r.getDate() + n); return r;
 }
-function dayLabel(offset) {
-  if (offset === -1) return '← Ieri';
-  if (offset ===  0) return 'Oggi';
-  if (offset ===  1) return 'Domani →';
-  return offset < 0 ? `← ${Math.abs(offset)} giorni fa` : `+${offset} giorni →`;
-}
 
 export default function EnergyTime() {
   const today = new Date(); today.setHours(12,0,0,0);
   const [dayOffset, setDayOffset] = useState(0);
-  const [data,      setData]      = useState({});   // cache: { dateStr: apiResponse }
+  const [data,      setData]      = useState({});
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [now,       setNow]       = useState(new Date());
   const [tab,       setTab]       = useState('chart');
   const [selected,  setSelected]  = useState(null);
-  const canvasRef = useRef(null);
-  // swipe
+  const canvasRef   = useRef(null);
   const touchStartX = useRef(null);
 
   useEffect(() => {
@@ -69,7 +62,7 @@ export default function EnergyTime() {
   }, []);
 
   const currentDate = addDays(today, dayOffset);
-  const dateStr = toDateStr(currentDate);
+  const dateStr     = toDateStr(currentDate);
   const currentData = data[dateStr];
 
   const loadPrices = useCallback(async (ds) => {
@@ -89,7 +82,6 @@ export default function EnergyTime() {
     setSelected(null);
   }, [dateStr]);
 
-  // Precarica ieri e domani in background
   useEffect(() => {
     [-1, 1].forEach(offset => {
       const ds = toDateStr(addDays(today, offset));
@@ -102,57 +94,64 @@ export default function EnergyTime() {
     });
   }, []);
 
-  // Disegna grafico
+  // ── Disegna grafico ──────────────────────────────────────────────────────
   useEffect(() => {
     if (tab !== 'chart' || !currentData || !canvasRef.current) return;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx    = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
     const { prices } = currentData;
     const min = Math.min(...prices), max = Math.max(...prices);
     const isToday = dayOffset === 0;
-    const hour = now.getHours();
-    const padB = 22, chartH = H - padB;
-    const barW = Math.floor((W - 2) / 24) - 1;
+    const hour    = now.getHours();
+    const padB    = 22;
+    const chartH  = H - padB;
+    const barW    = Math.floor((W - 2) / 24) - 1;
 
     ctx.clearRect(0, 0, W, H);
+
     prices.forEach((price, i) => {
-      const ratio = (price - min) / (max - min || 1);
-      const bh = Math.max(6, ratio * chartH * 0.9);
-      const x = i * (barW + 1) + 1;
-      const y = chartH - bh;
-      const col = priceColor(price, min, max);
-      const isNow = isToday && i === hour;
-      const isSel = i === selected;
+      const ratio  = (price - min) / (max - min || 1);
+      // Altezza proporzionale con minimo visivo del 12%
+      const minH   = chartH * 0.12;
+      const maxH   = chartH * 0.92;
+      const bh     = minH + ratio * (maxH - minH);
+      const x      = i * (barW + 1) + 1;
+      const y      = chartH - bh;
+      const col    = priceColor(price, min, max);
+      const isNow  = isToday && i === hour;
+      const isSel  = i === selected;
 
       ctx.fillStyle = isNow ? '#1e293b' : isSel ? col : col + 'cc';
       ctx.beginPath();
-      ctx.roundRect(x, y, barW, bh, [3,3,0,0]);
+      ctx.roundRect(x, y, barW, bh, [3, 3, 0, 0]);
       ctx.fill();
 
+      // Pallino sul minimo
       if (price === min && !isNow) {
         ctx.fillStyle = '#16a34a';
         ctx.beginPath();
         ctx.arc(x + barW/2, y - 6, 3, 0, Math.PI*2);
         ctx.fill();
       }
+
+      // Etichetta ora
       if (i % 4 === 0 || isNow) {
-        ctx.fillStyle = isNow ? '#1e293b' : '#94a3b8';
-        ctx.font = `${isNow ? 'bold ' : ''}9px sans-serif`;
-        ctx.textAlign = 'center';
+        ctx.fillStyle  = isNow ? '#1e293b' : '#94a3b8';
+        ctx.font       = `${isNow ? 'bold ' : ''}9px sans-serif`;
+        ctx.textAlign  = 'center';
         ctx.fillText(pad2(i), x + barW/2, H - 5);
       }
     });
   }, [tab, currentData, now, selected, dayOffset]);
 
-  const prices = currentData?.prices ?? [];
-  const minP = prices.length ? Math.min(...prices) : 0;
-  const maxP = prices.length ? Math.max(...prices) : 1;
-  const hour = now.getHours();
-  const currP = dayOffset === 0 && prices[hour] != null ? prices[hour] : null;
-  const bestH = prices.indexOf(Math.min(...prices));
+  const prices  = currentData?.prices ?? [];
+  const minP    = prices.length ? Math.min(...prices) : 0;
+  const maxP    = prices.length ? Math.max(...prices) : 1;
+  const hour    = now.getHours();
+  const currP   = dayOffset === 0 && prices[hour] != null ? prices[hour] : null;
+  const bestH   = prices.indexOf(Math.min(...prices));
 
-  // Swipe handlers
   const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const onTouchEnd   = (e) => {
     if (touchStartX.current === null) return;
@@ -166,12 +165,13 @@ export default function EnergyTime() {
   const handleCanvasClick = (e) => {
     if (!currentData) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvasRef.current.width / rect.width);
+    const x    = (e.clientX - rect.left) * (canvasRef.current.width / rect.width);
     const barW = Math.floor((canvasRef.current.width - 2) / 24) - 1;
-    const idx = Math.floor(x / (barW + 1));
+    const idx  = Math.floor(x / (barW + 1));
     if (idx >= 0 && idx < 24) setSelected(idx === selected ? null : idx);
   };
 
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div style={s.root} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
 
@@ -189,11 +189,7 @@ export default function EnergyTime() {
 
       {/* Navigazione giorni */}
       <div style={s.dayNav}>
-        <button
-          onClick={() => setDayOffset(o => Math.max(o-1,-1))}
-          style={{ ...s.dayBtn, opacity: dayOffset <= -1 ? 0.3 : 1 }}
-          disabled={dayOffset <= -1}
-        >‹</button>
+        <button onClick={() => setDayOffset(o => Math.max(o-1,-1))} style={{ ...s.dayBtn, opacity: dayOffset <= -1 ? 0.3 : 1 }} disabled={dayOffset <= -1}>‹</button>
         <div style={s.dayCenter}>
           <div style={{ ...s.dayLabel, color: dayOffset === 0 ? '#16a34a' : '#1e293b' }}>
             {dayOffset === 0 ? '📅 Oggi' : dayOffset === 1 ? '📅 Domani' : '📅 Ieri'}
@@ -202,14 +198,9 @@ export default function EnergyTime() {
             {currentDate.toLocaleDateString('it-IT', { weekday:'long', day:'numeric', month:'long' })}
           </div>
         </div>
-        <button
-          onClick={() => setDayOffset(o => Math.min(o+1, 1))}
-          style={{ ...s.dayBtn, opacity: dayOffset >= 1 ? 0.3 : 1 }}
-          disabled={dayOffset >= 1}
-        >›</button>
+        <button onClick={() => setDayOffset(o => Math.min(o+1, 1))} style={{ ...s.dayBtn, opacity: dayOffset >= 1 ? 0.3 : 1 }} disabled={dayOffset >= 1}>›</button>
       </div>
 
-      {/* Hint swipe */}
       <div style={s.swipeHint}>← scorri per cambiare giorno →</div>
 
       {loading && (
@@ -227,7 +218,7 @@ export default function EnergyTime() {
 
       {!loading && !error && currentData && (
         <>
-          {/* Hero card — solo per oggi */}
+          {/* Hero card — solo oggi */}
           {dayOffset === 0 && currP !== null && (
             <div style={s.hero}>
               <div style={s.heroLeft}>
@@ -254,7 +245,7 @@ export default function EnergyTime() {
 
           {/* Fonte */}
           <div style={s.sourceRow}>
-            <span style={{ color: currentData.isReal ? '#16a34a' : '#d97706', fontSize: 10 }}>●</span>
+            <span style={{ color: currentData.isReal ? '#16a34a' : '#d97706', fontSize:10 }}>●</span>
             <span style={s.sourceText}>{currentData.source}</span>
             {dayOffset === 1 && !currentData.isReal && (
               <span style={s.tomorrowNote}>⏰ disponibile dopo le 14:00</span>
@@ -323,7 +314,7 @@ export default function EnergyTime() {
             <div style={s.panel}>
               <div style={s.sectionTitle}>Fasce orarie</div>
               {SLOTS.map(slot => {
-                const sp = prices.slice(slot.range[0], slot.range[1]+1);
+                const sp  = prices.slice(slot.range[0], slot.range[1]+1);
                 const avg = sp.length ? sp.reduce((a,b)=>a+b,0)/sp.length : 10;
                 const col = priceColor(avg,minP,maxP);
                 const bg  = priceBg(avg,minP,maxP);
