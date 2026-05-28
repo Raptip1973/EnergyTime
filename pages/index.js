@@ -161,6 +161,8 @@ export default function EnergyTime() {
     const valid = months.filter(m => m !== null);
     if (!valid.length) return null;
     const minV = Math.min(...valid), maxV = Math.max(...valid);
+    // Scala assoluta per rendere le differenze proporzionali al valore reale
+    const absMin = 0, absMax = Math.max(25, maxV + 2);
     const W = 300, H = 120, padL = 20, padB = 22, padT = 14, padR = 8;
     const chartW = W - padL - padR, chartH = H - padB - padT;
     const count = months.filter(m => m !== null).length;
@@ -170,7 +172,7 @@ export default function EnergyTime() {
     // Calcola coordinate
     const coords = months.map((m, i) => {
       if (m === null) return null;
-      const ratio = (m - minV) / (maxV - minV || 1);
+      const ratio = (m - absMin) / (absMax - absMin || 1);
       const minH = chartH * 0.1, maxH = chartH * 0.9;
       const bh = minH + ratio * (maxH - minH);
       const x = padL + i * slotW + slotW * 0.15;
@@ -517,7 +519,7 @@ export default function EnergyTime() {
               {val !== null ? (
                 <>
                   <div style={s.monthBarBg}>
-                    <div style={{...s.monthBarFill, width:`${8 + ((val-mMin)/(mMax-mMin||1))*92}%`, background:priceColor(val,mMin,mMax)}}/>
+                    <div style={{...s.monthBarFill, width:`${(val / Math.max(25, mMax+2))*100}%`, background:priceColor(val,mMin,mMax)}}/>
                   </div>
                   <span style={{...s.monthVal, color:priceColor(val,mMin,mMax)}}>{val.toFixed(1)}</span>
                   {val===mMin && <span style={{fontSize:12}}>💚</span>}
