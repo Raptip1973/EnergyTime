@@ -409,7 +409,7 @@ export default function EnergyTime() {
                   <div key={i} onClick={()=>setSelected(i===selected?null:i)}
                     style={{...s.listRow, background:(dayOffset===0&&i===hour)?'#f0fdf4':i===selected?priceBg(p,minP,maxP):'#fff', borderLeft:`4px solid ${(dayOffset===0&&i===hour)?'#15803d':priceColor(p,minP,maxP)}`}}>
                     <span style={s.listHour}>{pad2(i)}:00</span>
-                    <div style={s.listBarBg}><div style={{...s.listBar,width:`${((p-minP)/(maxP-minP||1))*100}%`,background:priceColor(p,minP,maxP)}}/></div>
+                    <div style={s.listBarBg}><div style={{...s.listBar,width:`${8 + ((p-minP)/(maxP-minP||1))*92}%`,background:priceColor(p,minP,maxP)}}/></div>
                     <span style={{...s.listVal,color:priceColor(p,minP,maxP)}}>{p.toFixed(1)}</span>
                     {p===minP && <span>💚</span>}
                     {dayOffset===0&&i===hour && <span style={s.nowChip}>ORA</span>}
