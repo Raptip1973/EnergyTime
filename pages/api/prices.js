@@ -1,14 +1,18 @@
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
 
-  const today = new Date();
-  const dateLabel = today.toLocaleDateString('it-IT', {
+  // Accetta un parametro ?date=YYYY-MM-DD, altrimenti usa oggi
+  const dateParam = req.query.date;
+  const target = dateParam ? new Date(dateParam) : new Date();
+  target.setHours(12, 0, 0, 0); // mezzogiorno per evitare problemi di fuso
+
+  const dateLabel = target.toLocaleDateString('it-IT', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
   if (process.env.ENTSOE_TOKEN) {
     try {
-      const prices = await fetchFromENTSOE(process.env.ENTSOE_TOKEN, today);
+      const prices = await fetchFromENTSOE(process.env.ENTSOE_TOKEN, target);
       return res.status(200).json({
         prices,
         source: 'ENTSO-E — Dati reali di mercato',
@@ -41,42 +45,28 @@ async function fetchFromENTSOE(token, date) {
     return `${y}${m}${day}${hhmm}`;
   };
 
-  // Zona IT-Centre-North — la più vicina al PUN ufficiale GME
   const domain = '10Y1001A1001A70O';
-
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=${domain}&out_Domain=${domain}&periodStart=${fmt(yesterday,'2200')}&periodEnd=${fmt(date,'2200')}&securityToken=${token}`;
 
   const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
   const xml = await response.text();
-
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${xml.slice(0, 150)}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const rawPrices = parseENTSOEXml(xml);
-
-  // Corregge lo sfasamento UTC → ora italiana (UTC+2 in estate)
-  const utcOffset = getItalyUTCOffset(date); // +1 inverno, +2 estate
+  const utcOffset = getItalyUTCOffset(date);
   return shiftForTimezone(rawPrices, utcOffset);
 }
 
-// Calcola offset UTC dell'Italia per la data specificata
-// Italia: CET (UTC+1) in inverno, CEST (UTC+2) in estate
 function getItalyUTCOffset(date) {
-  // Ora legale in Italia: ultima domenica di marzo → ultima domenica di ottobre
   const year = date.getFullYear();
-
-  // Ultima domenica di marzo
   const lastSundayMarch = new Date(year, 2, 31);
   lastSundayMarch.setDate(31 - lastSundayMarch.getDay());
-
-  // Ultima domenica di ottobre
   const lastSundayOctober = new Date(year, 9, 31);
   lastSundayOctober.setDate(31 - lastSundayOctober.getDay());
-
   const isDST = date >= lastSundayMarch && date < lastSundayOctober;
-return isDST ? 1 : 0;
+  return isDST ? 1 : 0;
 }
 
-// Sposta i prezzi di N ore per correggere UTC → ora locale
 function shiftForTimezone(prices, hoursToShift) {
   return prices.map((_, i) => {
     const srcIndex = (i - hoursToShift + 24) % 24;
@@ -98,7 +88,6 @@ function parseENTSOEXml(xml) {
       const posMatch   = point.match(/<position>(\d+)<\/position>/);
       const priceMatch = point.match(/<price\.amount>([\d.]+)<\/price\.amount>/);
       if (!posMatch || !priceMatch) continue;
-
       const hourIndex = Math.floor((parseInt(posMatch[1]) - 1) / slotsPerHour);
       if (hourIndex >= 0 && hourIndex < 24) {
         hourlyBuckets[hourIndex].push(parseFloat(priceMatch[1]) / 10);
@@ -107,14 +96,10 @@ function parseENTSOEXml(xml) {
   }
 
   const prices = hourlyBuckets.map(b =>
-    b.length > 0
-      ? parseFloat((b.reduce((a, c) => a + c, 0) / b.length).toFixed(2))
-      : null
+    b.length > 0 ? parseFloat((b.reduce((a,c) => a+c, 0) / b.length).toFixed(2)) : null
   );
 
   const filled = prices.filter(p => p !== null).length;
-  console.log('[EnergyTime] Prezzi estratti:', filled, '/24');
-
   if (filled < 20) throw new Error(`Dati insufficienti: ${filled}/24 ore`);
 
   return prices.map((p, i) => {
