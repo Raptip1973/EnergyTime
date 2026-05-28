@@ -16,7 +16,8 @@ export default async function handler(req, res) {
 
   const periodStart = fmt(yesterday, '2200');
   const periodEnd   = fmt(today, '2200');
-  const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=10Y1001A1001A73I&out_Domain=10Y1001A1001A73I&out_Domain=10YIT-GRTN-----B&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${process.env.ENTSOE_TOKEN}`;
+  const domain = '10Y1001A1001A73I';
+  const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=${domain}&out_Domain=${domain}&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${process.env.ENTSOE_TOKEN}`;
 
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(25000) });
