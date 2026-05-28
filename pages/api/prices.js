@@ -32,13 +32,25 @@ export default async function handler(req, res) {
 }
 
 async function fetchFromENTSOE(token, date) {
-  // I prezzi di oggi sono stati pubblicati ieri — usiamo la data di oggi
+  // I prezzi MGP vengono pubblicati il giorno prima per il giorno dopo.
+  // Quindi per avere i prezzi di OGGI dobbiamo chiedere quelli
+  // che sono stati pubblicati IERI (con data di consegna = oggi).
+  // ENTSO-E usa UTC — l'Italia è UTC+1 (o +2 in estate).
+  // Usiamo un range ampio (giorno prima + giorno corrente) per sicurezza.
+
   const year  = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day   = String(date.getDate()).padStart(2, '0');
 
-  // Formato richiesto da ENTSO-E: YYYYMMDDhhmm (es. 202405280000)
-  const periodStart = `${year}${month}${day}0000`;
+  // Giorno precedente (per coprire il caso UTC vs ora italiana)
+  const yesterday = new Date(date);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yYear  = yesterday.getFullYear();
+  const yMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+  const yDay   = String(yesterday.getDate()).padStart(2, '0');
+
+  // Range: da ieri alle 23:00 UTC a domani alle 00:00 UTC
+  const periodStart = `${yYear}${yMonth}${yDay}2300`;
   const periodEnd   = `${year}${month}${day}2300`;
 
   const url = `https://web-api.tp.entsoe.eu/api?documentType=A44&in_Domain=10YIT-GRTN-----B&out_Domain=10YIT-GRTN-----B&periodStart=${periodStart}&periodEnd=${periodEnd}&securityToken=${token}`;
